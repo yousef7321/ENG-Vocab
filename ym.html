@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English AI Tutor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; overflow-x: hidden; background-color: #000; color: #fff; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        
+        .page-enter { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .glow-card {
+            transition: all 0.3s ease;
+            background: rgba(24, 24, 27, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .glow-card:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.05);
+            transform: translateY(-5px);
+            background: rgba(39, 39, 42, 0.8);
+        }
+    </style>
+</head>
+<body x-data="app" x-init="init()">
+
+    <nav class="sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10 p-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <button x-show="page !== 'home'" @click="setPage('home')" class="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <i data-lucide="arrow-right" class="w-6 h-6"></i>
+            </button>
+            <div class="text-xl font-black tracking-tighter" x-text="aiName"></div>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="text-xs font-bold opacity-50 px-3 py-1 bg-white/5 rounded-full border border-white/10 uppercase">English AI Tutor</div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto p-6">
+
+        <div x-show="page === 'home'" class="space-y-8 page-enter">
+            <header class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="text-center sm:text-right">
+                    <h1 class="text-3xl font-black italic">أهلاً بك يا بطل ✨</h1>
+                    <p class="text-zinc-500 mt-1 font-medium">لديك <span x-text="words.length" class="text-white"></span> كلمة في قاموسك.</p>
+                </div>
+                <button @click="isModalOpen = true" class="bg-white text-black px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-transform w-full sm:w-auto justify-center shadow-lg">
+                    <i data-lucide="plus" class="w-5 h-5"></i> إضافة كلمة
+                </button>
+            </header>
+
+            <!-- AI Search Box -->
+            <section class="bg-zinc-900/50 border border-white/10 p-6 rounded-[2.5rem]">
+                <div class="flex items-center gap-2 mb-4 text-zinc-400">
+                    <i data-lucide="brain" class="w-[18px] h-[18px]"></i>
+                    <span class="text-sm font-bold">اسأل <span x-text="aiName"></span> عن أي شيء</span>
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="مثلاً: ما الفرق بين Advice و Advise؟"
+                    class="w-full bg-black border border-white/10 rounded-2xl px-5 py-4 outline-none focus:border-white/40 transition-all text-lg"
+                    @keydown.enter="handleAiQuery($event)"
+                >
+                <div x-show="isAiLoading" class="mt-4 animate-pulse text-zinc-500 text-center"><span x-text="aiName"></span> يفكر... 💭</div>
+                <div x-show="aiResponse" x-transition class="mt-4 p-5 bg-white/5 rounded-2xl border border-white/5 text-zinc-300 leading-relaxed text-sm whitespace-pre-wrap" x-text="aiResponse"></div>
+            </section>
+
+            <!-- Main Menu Buttons -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button @click="setPage('words_list')" class="glow-card p-8 rounded-[2.5rem] flex flex-col items-center gap-4 group">
+                    <div class="scale-125 group-hover:scale-150 transition-transform"><i data-lucide="book"></i></div>
+                    <span class="font-bold text-sm tracking-wide">القاموس</span>
+                </button>
+                <button @click="startSetup('dictation')" class="glow-card p-8 rounded-[2.5rem] flex flex-col items-center gap-4 group">
+                    <div class="scale-125 group-hover:scale-150 transition-transform"><i data-lucide="pen-tool"></i></div>
+                    <span class="font-bold text-sm tracking-wide">تسميع</span>
+                </button>
+                <button @click="startSetup('flashcards')" class="glow-card p-8 rounded-[2.5rem] flex flex-col items-center gap-4 group">
+                    <div class="scale-125 group-hover:scale-150 transition-transform"><i data-lucide="layers"></i></div>
+                    <span class="font-bold text-sm tracking-wide">بطاقات</span>
+                </button>
+                <button @click="startSetup('exam')" class="glow-card p-8 rounded-[2.5rem] flex flex-col items-center gap-4 group">
+                    <div class="scale-125 group-hover:scale-150 transition-transform"><i data-lucide="sparkles"></i></div>
+                    <span class="font-bold text-sm tracking-wide">امتحان AI</span>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="page === 'words_list'" class="space-y-6 page-enter">
+            <h2 class="text-2xl font-black">مستودع الكلمات</h2>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button @click="activeUnitId = null" :class="!activeUnitId ? 'bg-white text-black' : 'bg-zinc-900 border-white/10 text-zinc-500'" class="px-4 py-2 rounded-xl border font-bold text-sm transition-all">الكل</button>
+                <template x-for="unit in units" :key="unit.id">
+                    <button @click="activeUnitId = unit.id" :class="activeUnitId === unit.id ? 'bg-white text-black' : 'bg-zinc-900 border-white/10 text-zinc-500'" class="px-4 py-2 rounded-xl border font-bold text-sm transition-all" x-text="unit.name"></button>
+                </template>
+            </div>
+            <div class="grid gap-3">
+                <template x-for="word in filteredWords" :key="word.id">
+                    <div class="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex justify-between items-center group">
+                        <div>
+                            <p class="font-bold text-lg" dir="ltr" x-text="word.eng"></p>
+                            <p class="text-zinc-500 text-sm" x-text="word.arb"></p>
+                            <span class="text-[10px] bg-white/5 px-2 py-0.5 rounded-full text-zinc-600 font-bold" x-text="word.unitName"></span>
+                        </div>
+                        <button @click="deleteWord(word.id)" class="text-zinc-700 hover:text-red-500 transition-colors p-2">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </template>
+                <div x-show="filteredWords.length === 0" class="text-center py-20 text-zinc-600">لا توجد كلمات هنا بعد.. أضف بعض الكلمات!</div>
+            </div>
+        </div>
+
+        <div x-show="page === 'setup'" class="max-w-2xl mx-auto space-y-8 py-6 page-enter">
+            <div class="text-center">
+                <h2 class="text-3xl font-black italic mb-2">تخصيص النشاط</h2>
+                <p class="text-zinc-500" x-text="getActivityTitle()"></p>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="font-bold text-zinc-400 text-sm">اختر الوحدات:</h3>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="unit in units" :key="unit.id">
+                        <button 
+                            @click="toggleUnitSelection(unit.id)"
+                            :class="selectedUnits.includes(unit.id) ? 'bg-white text-black border-white' : 'bg-zinc-900 border-white/5 text-zinc-500'"
+                            class="px-5 py-3 rounded-2xl border transition-all text-sm font-bold"
+                            x-text="unit.name"
+                        ></button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="selectedUnits.length > 0" class="bg-zinc-900/30 p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                <h3 class="font-bold text-zinc-400 text-sm flex justify-between">
+                    <span>اختر الكلمات:</span>
+                    <button @click="selectAllWords()" class="text-white hover:underline">اختيار الكل</button>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                    <template x-for="word in words.filter(w => selectedUnits.includes(w.unitId))" :key="word.id">
+                        <button 
+                            @click="toggleWordSelection(word.id)"
+                            :class="selectedWordIds.includes(word.id) ? 'bg-white/10 border-white/30 text-white' : 'bg-black/20 border-white/5 text-zinc-600'"
+                            class="flex items-center gap-3 p-3 rounded-xl border text-sm transition-all"
+                        >
+                            <i :data-lucide="selectedWordIds.includes(word.id) ? 'check-circle-2' : 'circle'" class="w-4 h-4"></i>
+                            <span x-text="word.eng" dir="ltr" class="font-bold"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="activeMode === 'dictation' && selectedWordIds.length > 0" class="space-y-3">
+                <h3 class="font-bold text-zinc-400 text-sm">نظام التسميع:</h3>
+                <select x-model="dictDirection" class="w-full bg-black border border-white/10 rounded-2xl p-4 outline-none focus:border-white/30 text-sm font-bold">
+                    <option value="arb2eng">أعطني الكلمة بالعربي وأنا أكتبها بالإنجليزي</option>
+                    <option value="eng2arb">أعطني الكلمة بالإنجليزي وأنا أكتبها بالعربي</option>
+                </select>
+            </div>
+
+            <button 
+                @click="runActivity()"
+                :disabled="selectedWordIds.length === 0"
+                class="w-full py-5 rounded-[2rem] font-black text-xl transition-all shadow-xl"
+                :class="selectedWordIds.length > 0 ? 'bg-white text-black hover:bg-zinc-200' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'"
+            >
+                ابدأ النشاط الآن
+            </button>
+        </div>
+
+        <div x-show="page === 'activity'" class="max-w-xl mx-auto py-10 text-center space-y-8 page-enter">
+            <div class="flex justify-between items-center text-xs font-bold text-zinc-500 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+                <span>السؤال <span x-text="currentIdx + 1" class="text-white"></span> من <span x-text="sessionWords.length"></span></span>
+                <span>الدرجة: <span x-text="score" class="text-green-500"></span></span>
+            </div>
+
+            <!-- Flashcards UI -->
+            <div x-show="activeMode === 'flashcards'" class="bg-zinc-900 p-12 rounded-[4rem] border border-white/10 shadow-2xl space-y-10 min-h-[350px] flex flex-col justify-center">
+                <template x-if="sessionWords[currentIdx]">
+                    <div class="space-y-8">
+                        <div class="space-y-2">
+                            <span class="text-xs uppercase tracking-widest text-zinc-600 font-black">Word</span>
+                            <h3 class="text-5xl font-black tracking-tight" dir="ltr" x-text="sessionWords[currentIdx].eng"></h3>
+                        </div>
+                        
+                        <div x-show="isRevealed" x-transition class="space-y-2 animate-in slide-in-from-top-2">
+                            <span class="text-xs uppercase tracking-widest text-zinc-600 font-black">Meaning</span>
+                            <h4 class="text-3xl text-zinc-400 font-bold" x-text="sessionWords[currentIdx].arb"></h4>
+                        </div>
+
+                        <div class="pt-6">
+                            <button x-show="!isRevealed" @click="isRevealed = true" class="bg-white/5 border border-white/10 px-8 py-3 rounded-full text-sm font-bold hover:bg-white/10 transition-all">كشف المعنى</button>
+                            <button x-show="isRevealed" @click="nextQuestion()" class="bg-white text-black w-full py-5 rounded-2xl font-black text-xl hover:scale-105 transition-all">الكلمة التالية</button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Dictation UI -->
+            <div x-show="activeMode === 'dictation'" class="bg-zinc-900 p-10 rounded-[3.5rem] border border-white/10 shadow-2xl space-y-8">
+                <template x-if="sessionWords[currentIdx]">
+                    <div class="space-y-6">
+                        <h3 class="text-3xl font-black" x-text="dictDirection === 'arb2eng' ? sessionWords[currentIdx].arb : sessionWords[currentIdx].eng"></h3>
+                        <input 
+                            type="text"
+                            x-model="userInput"
+                            @keydown.enter="checkDictation()"
+                            :disabled="!!activityFeedback"
+                            placeholder="اكتب الإجابة هنا..."
+                            class="w-full bg-black border-2 rounded-2xl p-5 text-center text-2xl font-bold outline-none transition-all"
+                            :class="activityFeedback === 'correct' ? 'border-green-500 text-green-500' : (activityFeedback ? 'border-red-500 text-red-500' : 'border-zinc-800 focus:border-white')"
+                            autofocus
+                        >
+                        <div x-show="activityFeedback" class="text-sm font-bold animate-pulse">
+                            <span x-show="activityFeedback === 'correct'">ممتاز! إجابة صحيحة ✨</span>
+                            <span x-show="activityFeedback !== 'correct'">خطأ! الإجابة هي: <span x-text="dictDirection === 'arb2eng' ? sessionWords[currentIdx].eng : sessionWords[currentIdx].arb"></span></span>
+                        </div>
+                        <button @click="checkDictation()" :disabled="!!activityFeedback" class="w-full bg-white text-black py-4 rounded-2xl font-black text-lg">تأكيد</button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Exam UI -->
+            <div x-show="activeMode === 'exam'" class="bg-zinc-900 p-8 rounded-[3.5rem] border border-white/10 shadow-2xl space-y-8">
+                <template x-if="sessionWords[currentIdx]">
+                    <div class="space-y-6">
+                        <h3 class="text-xl font-black leading-relaxed" x-text="sessionWords[currentIdx].question"></h3>
+                        <div class="grid grid-cols-1 gap-3">
+                            <template x-for="opt in sessionWords[currentIdx].options" :key="opt">
+                                <button 
+                                    @click="selectOption(opt)"
+                                    :disabled="!!activityFeedback"
+                                    class="w-full p-5 rounded-2xl border font-bold transition-all flex justify-between items-center"
+                                    :class="getOptionClass(opt)"
+                                >
+                                    <span x-text="opt"></span>
+                                    <i x-show="activityFeedback && opt === sessionWords[currentIdx].answer" data-lucide="check" class="w-5 h-5 text-green-500"></i>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Result Page -->
+        <div x-show="page === 'result'" class="max-w-sm mx-auto py-20 text-center space-y-8 page-enter">
+            <div class="text-8xl font-black text-white" x-text="score"></div>
+            <p class="text-xl text-zinc-400 font-bold">عاش يا بطل! استمر في التدريب.</p>
+            <button @click="setPage('home')" class="w-full bg-white text-black py-5 rounded-2xl font-black text-xl transition-transform hover:scale-105">العودة للرئيسية</button>
+        </div>
+
+    </main>
+
+    <!-- Add Word Modal -->
+    <div x-show="isModalOpen" class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6" x-transition>
+        <div class="bg-zinc-900 border border-white/10 w-full max-w-md rounded-[3rem] p-10 relative">
+            <button @click="isModalOpen = false" class="absolute top-8 left-8 text-zinc-600 hover:text-white"><i data-lucide="x"></i></button>
+            <h3 class="text-2xl font-black mb-8 italic">إضافة مفردات جديدة</h3>
+            <form @submit.prevent="handleAddWord" class="space-y-5">
+                <input name="eng" placeholder="Word in English" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white text-left" dir="ltr" required />
+                <input name="arb" placeholder="المعنى بالعربي" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white" required />
+                
+                <div class="space-y-3">
+                    <label class="text-xs font-bold text-zinc-500 px-2 uppercase">الوحدة</label>
+                    <select name="unitId" @change="showNewUnitInput = $event.target.value === 'new'" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white appearance-none cursor-pointer">
+                        <option value="">-- اختر وحدة --</option>
+                        <template x-for="unit in units" :key="unit.id">
+                            <option :value="unit.id" x-text="unit.name"></option>
+                        </template>
+                        <option value="new" class="text-blue-400 font-bold">+ إنشاء وحدة جديدة</option>
+                    </select>
+                    <input x-show="showNewUnitInput" name="newUnitName" placeholder="اسم الوحدة الجديدة (مثلاً: Unit 4)" class="w-full bg-black border border-white/30 rounded-xl p-4 outline-none focus:border-white animate-in slide-in-from-top-2" />
+                </div>
+
+                <button type="submit" class="w-full bg-white text-black py-5 rounded-2xl font-black text-xl mt-4">حفظ الكلمة</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div x-show="isSettingsOpen" class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6" x-transition>
+        <div class="bg-zinc-900 border border-white/10 w-full max-w-md rounded-[3rem] p-10 relative">
+            <button @click="isSettingsOpen = false" class="absolute top-8 left-8 text-zinc-600 hover:text-white"><i data-lucide="x"></i></button>
+            <h3 class="text-2xl font-black mb-8 italic">إعدادات الـ AI</h3>
+            <div class="space-y-6">
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-zinc-500 px-2 uppercase">اسم المعلم (AI)</label>
+                    <input x-model="aiName" placeholder="مثلاً: يوسف" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white" />
+                </div>
+                
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-zinc-500 px-2 uppercase">Google Gemini API Key</label>
+                    <input x-model="apiKey" type="password" placeholder="أدخل مفتاح الـ API هنا" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white" />
+                    <p class="text-[10px] text-zinc-600 px-2 leading-tight">ملاحظة: يتم حفظ المفتاح محلياً في متصفحك فقط.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-zinc-500 px-2 uppercase">إصدار الموديل</label>
+                    <select x-model="modelName" class="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-white appearance-none">
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (سريع جداً)</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (أكثر ذكاءً)</option>
+                    </select>
+                </div>
+
+                <button @click="saveSettings(); isSettingsOpen = false" class="w-full bg-white text-black py-5 rounded-2xl font-black text-xl mt-4">حفظ الإعدادات</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('app', () => ({
+                page: 'home',
+                words: [],
+                units: [],
+                isModalOpen: false,
+                isSettingsOpen: false, // NEW
+                showNewUnitInput: false,
+                isAiLoading: false,
+                aiResponse: '',
+                activeUnitId: null,
+                
+                activeMode: null,
+                selectedUnits: [],
+                selectedWordIds: [],
+                sessionWords: [],
+                currentIdx: 0,
+                score: 0,
+                isRevealed: false,
+                userInput: '',
+                activityFeedback: null,
+                dictDirection: 'arb2eng',
+
+                // SETTINGS STATE
+                apiKey: "AIzaSyD17UOLuZDr8hKzHm9qsVcUBK5Pp-qFzZw", 
+                aiName: "يوسف",
+                modelName: "gemini-3.1-flash-lite",
+
+                init() {
+                    // Load words
+                    const savedWords = localStorage.getItem('youssef_words');
+                    if (savedWords) {
+                        this.words = JSON.parse(savedWords);
+                    } else {
+                        this.words = [
+                            { id: 1, eng: 'Ambitious', arb: 'طموح', unitId: 'u1', unitName: 'Unit 1' },
+                            { id: 2, eng: 'Heritage', arb: 'تراث', unitId: 'u1', unitName: 'Unit 1' },
+                            { id: 3, eng: 'Innovative', arb: 'مبتكر', unitId: 'u2', unitName: 'Unit 2' },
+                            { id: 4, eng: 'Obstacle', arb: 'عقبة', unitId: 'u2', unitName: 'Unit 2' }
+                        ];
+                        this.saveWords();
+                    }
+
+                    // Load settings
+                    const savedSettings = localStorage.getItem('youssef_settings');
+                    if (savedSettings) {
+                        const settings = JSON.parse(savedSettings);
+                        this.apiKey = settings.apiKey || "";
+                        this.aiName = settings.aiName || "يوسف";
+                        this.modelName = settings.modelName || "gemini-1.5-flash";
+                    }
+
+                    this.updateUnits();
+                    this.refreshIcons();
+                },
+
+                saveSettings() {
+                    localStorage.setItem('youssef_settings', JSON.stringify({
+                        apiKey: this.apiKey,
+                        aiName: this.aiName,
+                        modelName: this.modelName
+                    }));
+                },
+
+                saveWords() {
+                    localStorage.setItem('youssef_words', JSON.stringify(this.words));
+                    this.updateUnits();
+                },
+
+                updateUnits() {
+                    const unitMap = new Map();
+                    this.words.forEach(w => {
+                        if (!unitMap.has(w.unitId)) unitMap.set(w.unitId, w.unitName);
+                    });
+                    this.units = Array.from(unitMap).map(([id, name]) => ({ id, name }));
+                },
+
+                get filteredWords() {
+                    if (!this.activeUnitId) return this.words;
+                    return this.words.filter(w => w.unitId === this.activeUnitId);
+                },
+
+                setPage(p) {
+                    this.page = p;
+                    this.aiResponse = '';
+                    this.refreshIcons();
+                },
+
+                refreshIcons() {
+                    setTimeout(() => lucide.createIcons(), 10);
+                },
+
+                startSetup(mode) {
+                    this.activeMode = mode;
+                    this.selectedUnits = [];
+                    this.selectedWordIds = [];
+                    this.setPage('setup');
+                },
+
+                getActivityTitle() {
+                    if (this.activeMode === 'dictation') return 'تسميع الكلمات كتابياً';
+                    if (this.activeMode === 'flashcards') return 'مراجعة ببطاقات الذاكرة';
+                    if (this.activeMode === 'exam') return 'امتحان خيارات ثانوية عامة';
+                    return '';
+                },
+
+                async handleAiQuery(e) {
+                    const query = e.target.value;
+                    if (!query) return;
+
+                    if (!this.apiKey) {
+                        this.aiResponse = "⚠️ يرجى إدخال مفتاح الـ API من الإعدادات أولاً (أيقونة الترس في الأعلى).";
+                        e.target.value = '';
+                        return;
+                    }
+
+                    this.isAiLoading = true;
+                    this.aiResponse = '';
+                    
+                    try {
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+                        
+                        const payload = {
+                            contents: [{ parts: [{ text: query }] }],
+                            systemInstruction: {
+                                parts: [{ text: `أنت ${this.aiName}، معلم لغة إنجليزية خبير. قدم شروحات مبسطة وممتعة باللغة العربية. ركز على القواعد، الفروق اللغوية، والنطق الصحيح.` }]
+                            }
+                        };
+
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result.error) {
+                            throw new Error(result.error.message);
+                        }
+
+                        if (result.candidates && result.candidates[0].content) {
+                            this.aiResponse = result.candidates[0].content.parts[0].text;
+                        } else {
+                            this.aiResponse = "عذراً، لم أستطع الحصول على رد من الذكاء الاصطناعي.";
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        this.aiResponse = `❌ خطأ: ${err.message || 'تأكد من صحة مفتاح الـ API والإنترنت.'}`;
+                    } finally {
+                        this.isAiLoading = false;
+                        e.target.value = '';
+                        this.refreshIcons();
+                    }
+                },
+
+                toggleUnitSelection(uid) {
+                    if (this.selectedUnits.includes(uid)) {
+                        this.selectedUnits = this.selectedUnits.filter(i => i !== uid);
+                        const wordsInUnit = this.words.filter(w => w.unitId === uid).map(w => w.id);
+                        this.selectedWordIds = this.selectedWordIds.filter(id => !wordsInUnit.includes(id));
+                    } else {
+                        this.selectedUnits.push(uid);
+                        const wordsInUnit = this.words.filter(w => w.unitId === uid).map(w => w.id);
+                        this.selectedWordIds = [...new Set([...this.selectedWordIds, ...wordsInUnit])];
+                    }
+                    this.refreshIcons();
+                },
+
+                toggleWordSelection(id) {
+                    if (this.selectedWordIds.includes(id)) {
+                        this.selectedWordIds = this.selectedWordIds.filter(i => i !== id);
+                    } else {
+                        this.selectedWordIds.push(id);
+                    }
+                    this.refreshIcons();
+                },
+
+                selectAllWords() {
+                    const allFromSelectedUnits = this.words.filter(w => this.selectedUnits.includes(w.unitId)).map(w => w.id);
+                    this.selectedWordIds = allFromSelectedUnits;
+                    this.refreshIcons();
+                },
+
+                runActivity() {
+                    const filtered = this.words.filter(w => this.selectedWordIds.includes(w.id));
+                    this.sessionWords = [...filtered].sort(() => 0.5 - Math.random());
+                    
+                    if (this.activeMode === 'exam') {
+                        this.generateExamQuestions();
+                    }
+
+                    this.currentIdx = 0;
+                    this.score = 0;
+                    this.isRevealed = false;
+                    this.userInput = '';
+                    this.activityFeedback = null;
+                    this.setPage('activity');
+                },
+
+                generateExamQuestions() {
+                    this.sessionWords = this.sessionWords.map(w => {
+                        const isArbQ = Math.random() > 0.5;
+                        const others = this.words.filter(ow => ow.id !== w.id).sort(() => 0.5 - Math.random());
+                        return {
+                            ...w,
+                            question: isArbQ ? `ما هو المعنى الإنجليزي لـ: "${w.arb}"؟` : `ما هو المعنى العربي لـ: "${w.eng}"؟`,
+                            options: isArbQ ? 
+                                [w.eng, others[0]?.eng || 'Goal', others[1]?.eng || 'Task', others[2]?.eng || 'Idea'].sort(() => 0.5 - Math.random()) :
+                                [w.arb, others[0]?.arb || 'هدف', others[1]?.arb || 'مهمة', others[2]?.arb || 'فكرة'].sort(() => 0.5 - Math.random()),
+                            answer: isArbQ ? w.eng : w.arb
+                        };
+                    });
+                },
+
+                checkDictation() {
+                    if (this.activityFeedback) return;
+                    const q = this.sessionWords[this.currentIdx];
+                    const target = this.dictDirection === 'arb2eng' ? q.eng : q.arb;
+                    const isCorrect = this.userInput.trim().toLowerCase() === target.toLowerCase();
+                    
+                    if (isCorrect) this.score++;
+                    this.activityFeedback = isCorrect ? 'correct' : 'wrong';
+
+                    setTimeout(() => this.nextQuestion(), 1500);
+                },
+
+                selectOption(opt) {
+                    if (this.activityFeedback) return;
+                    const correct = this.sessionWords[this.currentIdx].answer;
+                    if (opt === correct) this.score++;
+                    this.activityFeedback = opt === correct ? 'correct' : 'wrong';
+                    this.refreshIcons();
+                    setTimeout(() => this.nextQuestion(), 1200);
+                },
+
+                getOptionClass(opt) {
+                    if (!this.activityFeedback) return 'border-white/10 hover:border-white bg-white/5';
+                    const correct = this.sessionWords[this.currentIdx].answer;
+                    if (opt === correct) return 'bg-green-500/20 border-green-500 text-green-500';
+                    if (this.activityFeedback === 'wrong' && opt !== correct) return 'opacity-30 border-white/5';
+                    return 'border-white/10 opacity-50';
+                },
+
+                nextQuestion() {
+                    if (this.currentIdx < this.sessionWords.length - 1) {
+                        this.currentIdx++;
+                        this.isRevealed = false;
+                        this.userInput = '';
+                        this.activityFeedback = null;
+                        this.refreshIcons();
+                    } else {
+                        this.setPage('result');
+                    }
+                },
+
+                handleAddWord(e) {
+                    const fd = new FormData(e.target);
+                    const eng = fd.get('eng');
+                    const arb = fd.get('arb');
+                    let unitId = fd.get('unitId');
+                    let unitName = this.units.find(u => u.id === unitId)?.name;
+
+                    if (unitId === 'new') {
+                        const newName = fd.get('newUnitName');
+                        unitId = 'u_' + Date.now();
+                        unitName = newName || 'وحدة جديدة';
+                    }
+
+                    if (!unitId || !unitName) {
+                        return;
+                    }
+
+                    this.words.push({
+                        id: Date.now(),
+                        eng,
+                        arb,
+                        unitId,
+                        unitName
+                    });
+
+                    this.saveWords();
+                    this.isModalOpen = false;
+                    e.target.reset();
+                    this.showNewUnitInput = false;
+                },
+
+                deleteWord(id) {
+                    this.words = this.words.filter(w => w.id !== id);
+                    this.saveWords();
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
